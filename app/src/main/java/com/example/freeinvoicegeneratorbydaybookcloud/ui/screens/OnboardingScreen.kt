@@ -2,13 +2,13 @@ package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -21,44 +21,36 @@ import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.PrimaryButto
 
 @Composable
 fun OnboardingScreen(
-    onGetStarted: () -> Unit,
-    onSkip: () -> Unit
+    onGetStarted: () -> Unit
 ) {
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
-        // Skip button top-right
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 52.dp, end = 16.dp)
-        ) {
-            Text(
-                text = "Skip",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        val compactHeight = maxHeight < 700.dp
+        val invoiceCardHeight = if (compactHeight) 176.dp else 210.dp
+        val topSpace = if (compactHeight) 24.dp else 56.dp
+        val middleSpace = if (compactHeight) 28.dp else 44.dp
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp),
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(topSpace))
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 // Mock invoice illustration card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(210.dp),
+                        .height(invoiceCardHeight),
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -151,7 +143,7 @@ fun OnboardingScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(44.dp))
+                Spacer(modifier = Modifier.height(middleSpace))
 
                 Text(
                     text = buildAnnotatedString {
@@ -181,34 +173,10 @@ fun OnboardingScreen(
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(bottom = 40.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 20.dp, bottom = 16.dp)
             ) {
-                // Page indicators (pill style)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(bottom = 28.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(20.dp)
-                            .height(7.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-                }
-
                 PrimaryButton(
                     text = "Get Started →",
                     onClick = onGetStarted

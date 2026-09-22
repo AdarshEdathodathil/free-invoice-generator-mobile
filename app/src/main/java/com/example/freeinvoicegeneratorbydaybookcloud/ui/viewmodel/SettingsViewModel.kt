@@ -32,6 +32,8 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, businessSettingsRepository.settings.value.email)
     val phoneNumber = businessSettingsRepository.settings.map { it.phone }
         .stateIn(viewModelScope, SharingStarted.Eagerly, businessSettingsRepository.settings.value.phone)
+    val organizationLogoPath = businessSettingsRepository.settings.map { it.logoPath }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, businessSettingsRepository.settings.value.logoPath)
 
     private val _themeMode = MutableStateFlow(runCatching {
         ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name)
@@ -62,7 +64,7 @@ class SettingsViewModel @Inject constructor(
         businessSettingsRepository.update(name, current.address, current.email, current.phone)
     }
 
-    fun updateOrganization(name: String, address: String, email: String, phone: String) {
-        businessSettingsRepository.update(name, address, email, phone)
+    fun updateOrganization(name: String, address: String, email: String, phone: String, logoPath: String?) {
+        businessSettingsRepository.update(name, address, email, phone, logoPath)
     }
 }

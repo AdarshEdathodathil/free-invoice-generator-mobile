@@ -1,8 +1,10 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,7 +20,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +32,7 @@ import com.example.freeinvoicegeneratorbydaybookcloud.data.preferences.majorCurr
 import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.*
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.*
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.CreateInvoiceViewModel
+import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
@@ -37,8 +42,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val workflowDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
-private val simpleSteps = listOf("Details", "Items", "Additional", "Review")
-private val advancedSteps = listOf("Business", "Customer", "Details", "Items", "Payment", "Review")
+private val simpleSteps = listOf("Details", "Items", "Additional", "Review", "Template")
+private val advancedSteps = listOf("Business", "Customer", "Details", "Items", "Payment", "Review", "Template")
 
 @Composable
 fun InvoiceTypeSelectionScreen(
@@ -113,30 +118,66 @@ fun AdvancedOrganizationScreen(viewModel: CreateInvoiceViewModel, onBack: () -> 
     var authority by remember(state.authorityName) { mutableStateOf(state.authorityName) }
     var designation by remember(state.authorityDesignation) { mutableStateOf(state.authorityDesignation) }
     var logo by remember(state.organizationLogoPath) { mutableStateOf(state.organizationLogoPath) }
+    var phoneCountryCode by remember(state.organizationMobile) { mutableStateOf(countryForValue(state.organizationMobile).dialCode) }
     val context = LocalContext.current
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             logo = it.toString()
+            Toast.makeText(context, "Logo uploaded successfully", Toast.LENGTH_SHORT).show()
         }
     }
+    val validEmail = isValidEmail(email)
+    val validMobile = isValidMobile(mobile)
     WorkflowScaffold("Organization", 1, advancedSteps, onBack, "Customer", {
         viewModel.updateAdvancedOrganization(name, address, country, email, mobile, gstin, authority, designation, logo)
         viewModel.setStep(2); onNext()
-    }, nextEnabled = name.isNotBlank() && address.isNotBlank()) {
+    }, nextEnabled = name.isNotBlank() && address.isNotBlank() && validEmail && validMobile) {
         FormCard("YOUR BUSINESS") {
-            DaybookTextField(name, { name = it }, "Business Name", singleLine = true)
-            DaybookTextField(address, { address = it }, "Address", minLines = 2)
-            DaybookTextField(country, { country = it }, "Country", singleLine = true)
-            DaybookTextField(email, { email = it }, "Email", singleLine = true)
-            DaybookTextField(mobile, { mobile = it }, "Mobile", singleLine = true)
-            DaybookTextField(gstin, { gstin = it }, "GSTIN", singleLine = true)
+            DaybookTextField(name, { name = it }, "Business Name", singleLine = true, placeholder = "Enter business name")
+            DaybookTextField(address, { address = it }, "Address", minLines = 2, placeholder = "Enter business address")
+            SimpleChoiceMenu("Country", country.ifBlank { "Select country" }, invoiceCountries.map { it.name }) { country = it }
+            DaybookTextField(email, { email = it.trim() }, "Email", singleLine = true, placeholder = "name@example.com")
+            if (!validEmail) FieldError("Enter a valid email address.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SimpleChoiceMenu(
+                    label = "Code",
+                    value = phoneCountryCode,
+                    options = invoiceCountries.map { it.dialCode }.distinct(),
+                    modifier = Modifier.width(112.dp)
+                ) { selected ->
+                    mobile = combineMobile(selected, mobileNumberPart(mobile, phoneCountryCode))
+                    phoneCountryCode = selected
+                }
+                DaybookTextField(
+                    value = mobileNumberPart(mobile, phoneCountryCode),
+                    onValueChange = { mobile = combineMobile(phoneCountryCode, it) },
+                    label = "Mobile",
+                    singleLine = true,
+                    placeholder = "9876543210",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (!validMobile) FieldError("Enter a valid mobile number.")
+            DaybookTextField(gstin, { gstin = it.uppercase() }, "GSTIN", singleLine = true)
             DaybookTextField(authority, { authority = it }, "Authority Name", singleLine = true)
             DaybookTextField(designation, { designation = it }, "Authority Designation", singleLine = true)
             OutlinedButton(onClick = { logoPicker.launch(arrayOf("image/*")) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Business, null); Spacer(Modifier.width(8.dp))
                 Text(if (logo == null) "Choose Logo" else "Change Logo")
             }
+            if (logo != null) {
+                TextButton(
+                    onClick = {
+                        logo = null
+                        Toast.makeText(context, "Logo removed", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Remove Logo")
+                }
+            }
+            logo?.let { LogoPreviewSmall(it) }
         }
     }
 }
@@ -150,16 +191,39 @@ fun AdvancedCustomerScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Unit
     var mobile by remember(state.customerMobile) { mutableStateOf(state.customerMobile) }
     var email by remember(state.customerEmail) { mutableStateOf(state.customerEmail) }
     var gstin by remember(state.customerGstin) { mutableStateOf(state.customerGstin) }
+    var phoneCountryCode by remember(state.customerMobile) { mutableStateOf(countryForValue(state.customerMobile).dialCode) }
+    val validEmail = isValidEmail(email)
+    val validMobile = isValidMobile(mobile)
     WorkflowScaffold("Customer", 2, advancedSteps, onBack, "Invoice Details", {
         viewModel.updateAdvancedCustomer(name, address, country, mobile, email, gstin); viewModel.setStep(3); onNext()
-    }, nextEnabled = name.isNotBlank() && address.isNotBlank()) {
+    }, nextEnabled = name.isNotBlank() && address.isNotBlank() && validEmail && validMobile) {
         FormCard("BILL TO") {
             DaybookTextField(name, { name = it }, "Customer Name", singleLine = true)
             DaybookTextField(address, { address = it }, "Address", minLines = 2)
-            DaybookTextField(country, { country = it }, "Country", singleLine = true)
-            DaybookTextField(mobile, { mobile = it }, "Mobile", singleLine = true)
-            DaybookTextField(email, { email = it }, "Email", singleLine = true)
-            DaybookTextField(gstin, { gstin = it }, "GSTIN", singleLine = true)
+            SimpleChoiceMenu("Country", country.ifBlank { "Select country" }, invoiceCountries.map { it.name }) { country = it }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SimpleChoiceMenu(
+                    label = "Code",
+                    value = phoneCountryCode,
+                    options = invoiceCountries.map { it.dialCode }.distinct(),
+                    modifier = Modifier.width(112.dp)
+                ) { selected ->
+                    mobile = combineMobile(selected, mobileNumberPart(mobile, phoneCountryCode))
+                    phoneCountryCode = selected
+                }
+                DaybookTextField(
+                    value = mobileNumberPart(mobile, phoneCountryCode),
+                    onValueChange = { mobile = combineMobile(phoneCountryCode, it) },
+                    label = "Mobile",
+                    singleLine = true,
+                    placeholder = "9876543210",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (!validMobile) FieldError("Enter a valid mobile number.")
+            DaybookTextField(email, { email = it.trim() }, "Email", singleLine = true, placeholder = "name@example.com")
+            if (!validEmail) FieldError("Enter a valid email address.")
+            DaybookTextField(gstin, { gstin = it.uppercase() }, "GSTIN", singleLine = true)
         }
     }
 }
@@ -191,7 +255,9 @@ fun AdvancedDetailsScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Unit,
             DaybookTextField(number, { number = it }, "Invoice Number", singleLine = true)
             WorkflowDateField(invoiceDate, "Invoice Date") { showInvoicePicker = true }
             WorkflowDateField(dueDate, "Due Date") { showDuePicker = true }
-            ChoiceMenu("Currency", currencyCode, majorCurrencies.map { it.code }) { currencyCode = it }
+            ChoiceMenu("Currency", currency.displayName, majorCurrencies.map { it.displayName }) { selected ->
+                currencyCode = majorCurrencies.first { it.displayName == selected }.code
+            }
             ChoiceMenu("Decimal Places", decimals.toString(), (0..3).map(Int::toString)) { decimals = it.toInt() }
             DaybookTextField(deliveryState, { deliveryState = it }, "Delivery State", singleLine = true)
             ChoiceMenu("Tax Option", taxOption.label(), TaxOption.entries.map { it.label() }) { label ->
@@ -232,6 +298,56 @@ fun AdvancedPaymentScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Unit,
         FormCard("ADDITIONAL") {
             DaybookTextField(notes, { notes = it }, "Notes", minLines = 3)
             DaybookTextField(terms, { terms = it }, "Terms and Conditions", minLines = 3)
+        }
+    }
+}
+
+@Composable
+fun CreateInvoiceTemplateStepScreen(
+    viewModel: CreateInvoiceViewModel,
+    onBack: () -> Unit,
+    onFinish: () -> Unit
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val selectedTemplateId by viewModel.selectedTemplateId.collectAsStateWithLifecycle()
+    val advanced = state.invoiceType == InvoiceType.ADVANCED
+    var selected by remember(selectedTemplateId) { mutableStateOf(selectedTemplateId) }
+    val templates = invoiceTemplateChoices()
+
+    WorkflowScaffold(
+        title = "Select Template",
+        step = if (advanced) 7 else 5,
+        steps = if (advanced) advancedSteps else simpleSteps,
+        onBack = onBack,
+        nextLabel = "Create Invoice",
+        onNext = {
+            viewModel.selectInvoiceTemplate(selected)
+            onFinish()
+        }
+    ) {
+        FormCard("TEMPLATE") {
+            templates.forEach { template ->
+                OutlinedCard(
+                    onClick = { selected = template.id },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        RadioButton(
+                            selected = selected == template.id,
+                            onClick = { selected = template.id }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(template.title, fontWeight = FontWeight.SemiBold)
+                            Text(template.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -302,6 +418,45 @@ private fun TaxOption.label() = when (this) {
     TaxOption.CGST_SGST -> "CGST & SGST"
     TaxOption.IGST -> "IGST"
     TaxOption.NON_TAXABLE -> "Non Taxable"
+}
+
+private data class CreateTemplateChoice(
+    val id: String,
+    val title: String,
+    val subtitle: String
+)
+
+private fun invoiceTemplateChoices() = listOf(
+    CreateTemplateChoice("modern_teal", "Modern Teal", "Clean minimal default layout."),
+    CreateTemplateChoice("classic_business", "Classic Business", "Traditional sections and totals."),
+    CreateTemplateChoice("elegant_blue", "Elegant Blue", "Polished blue business accents."),
+    CreateTemplateChoice("minimal_black", "Minimal Black", "Formal monochrome layout."),
+    CreateTemplateChoice("soft_green", "Soft Green", "Calm green highlight panels."),
+    CreateTemplateChoice("premium_gold", "Premium Gold", "Warm premium accents."),
+    CreateTemplateChoice("corporate_slate", "Corporate Slate", "Dense B2B structure."),
+    CreateTemplateChoice("creative_coral", "Creative Coral", "Modern creative highlights."),
+    CreateTemplateChoice("royal_purple", "Royal Purple", "Refined purple accents."),
+    CreateTemplateChoice("clean_ledger", "Clean Ledger", "Compact ledger-inspired format.")
+)
+
+@Composable
+private fun FieldError(message: String) {
+    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+}
+
+@Composable
+private fun LogoPreviewSmall(uri: String) {
+    val context = LocalContext.current
+    val logoResolver = remember { LogoResolver() }
+    val bitmap = remember(uri) { logoResolver.decode(context, uri) }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Logo preview",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxWidth().height(72.dp)
+        )
+    }
 }
 
 internal fun String.toMinor(decimalPlaces: Int): Long = runCatching {

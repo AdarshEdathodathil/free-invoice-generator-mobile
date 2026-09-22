@@ -18,6 +18,8 @@ import com.example.freeinvoicegeneratorbydaybookcloud.domain.repository.InvoiceR
 import com.example.freeinvoicegeneratorbydaybookcloud.domain.repository.OrganizationRepository
 import com.example.freeinvoicegeneratorbydaybookcloud.pdf.InvoicePdfGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.math.BigDecimal
+import java.math.RoundingMode
 import javax.inject.Inject
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -96,16 +98,6 @@ class CreateInvoiceViewModel @Inject constructor(
         viewModelScope.launch {
             businessSettingsRepository.settings.collect { settings ->
                 currentBusinessSettings = settings
-                if (_editingInvoiceId.value == null) {
-                    _uiState.update {
-                        it.copy(
-                            organizationName = settings.name,
-                            organizationAddress = settings.address,
-                            organizationEmail = settings.email,
-                            organizationMobile = settings.phone
-                        )
-                    }
-                }
             }
         }
         viewModelScope.launch {
@@ -153,6 +145,24 @@ class CreateInvoiceViewModel @Inject constructor(
         _uiState.update { it.copy(invoiceNumber = number, invoiceDate = date, dueDate = due) }
     }
 
+    fun updateCurrency(currencyCode: String, currencySymbol: String, decimalPlaces: Int) {
+        _uiState.update {
+            it.copy(
+                currencyCode = currencyCode,
+                currencySymbol = currencySymbol,
+                decimalPlaces = decimalPlaces.coerceIn(0, 3)
+            )
+        }
+    }
+
+    fun updateDateFormat(dateFormat: DateFormatOption) {
+        _uiState.update { it.copy(dateFormat = dateFormat) }
+    }
+
+    fun selectInvoiceTemplate(templateId: String) {
+        invoiceSettingsRepository.updateTemplate(templateId)
+    }
+
     fun updateAdvancedOrganization(
         name: String,
         address: String,
@@ -171,7 +181,7 @@ class CreateInvoiceViewModel @Inject constructor(
                 organizationCountry = country,
                 organizationEmail = email,
                 organizationMobile = mobile,
-                organizationGstin = gstin,
+                organizationGstin = gstin.uppercase(),
                 authorityName = authorityName,
                 authorityDesignation = designation,
                 organizationLogoPath = logoPath
@@ -194,7 +204,7 @@ class CreateInvoiceViewModel @Inject constructor(
                 customerCountry = country,
                 customerMobile = mobile,
                 customerEmail = email,
-                customerGstin = gstin
+                customerGstin = gstin.uppercase()
             )
         }
     }
@@ -278,7 +288,7 @@ class CreateInvoiceViewModel @Inject constructor(
             sgstPercent = if (state.taxOption == TaxOption.CGST_SGST) taxPercent / 2.0 else 0.0,
             igstPercent = if (state.taxOption == TaxOption.IGST) taxPercent else 0.0
         )
-        _uiState.update { it.copy(items = it.items + item) }
+        _uiState.update { it.copy(items = it.items + item.withCalculatedAmounts(state.invoiceType, state.taxOption)) }
     }
 
     fun updateItem(
@@ -306,12 +316,53 @@ class CreateInvoiceViewModel @Inject constructor(
                             cgstPercent = if (state.taxOption == TaxOption.CGST_SGST) taxPercent / 2.0 else 0.0,
                             sgstPercent = if (state.taxOption == TaxOption.CGST_SGST) taxPercent / 2.0 else 0.0,
                             igstPercent = if (state.taxOption == TaxOption.IGST) taxPercent else 0.0
-                        )
+                        ).withCalculatedAmounts(state.invoiceType, state.taxOption)
                     }
                 }
             )
         }
     }
+
+    private fun InvoiceItemUiModel.withCalculatedAmounts(
+        invoiceType: InvoiceType,
+        taxOption: TaxOption
+    ): InvoiceItemUiModel {
+        val subtotal = unitPriceMinor * quantity
+        if (invoiceType == InvoiceType.SIMPLE) {
+            return copy(
+                lineSubtotalMinor = subtotal,
+                discountPercent = 0.0,
+                discountMinor = 0L,
+                taxableAmountMinor = subtotal,
+                cgstPercent = 0.0,
+                sgstPercent = 0.0,
+                igstPercent = 0.0,
+                taxAmountMinor = 0L,
+                totalMinor = subtotal
+            )
+        }
+
+        val discount = percentage(subtotal, discountPercent)
+        val taxable = (subtotal - discount).coerceAtLeast(0L)
+        val tax = when (taxOption) {
+            TaxOption.CGST_SGST -> percentage(taxable, cgstPercent) + percentage(taxable, sgstPercent)
+            TaxOption.IGST -> percentage(taxable, igstPercent)
+            TaxOption.NON_TAXABLE -> 0L
+        }
+        return copy(
+            lineSubtotalMinor = subtotal,
+            discountMinor = discount,
+            taxableAmountMinor = taxable,
+            taxAmountMinor = tax,
+            totalMinor = taxable + tax
+        )
+    }
+
+    private fun percentage(amountMinor: Long, percent: Double): Long =
+        BigDecimal.valueOf(amountMinor)
+            .multiply(BigDecimal.valueOf(percent))
+            .divide(BigDecimal.valueOf(100L), 0, RoundingMode.HALF_UP)
+            .longValueExact()
 
     fun removeItem(itemId: String) {
         _uiState.update { it.copy(items = it.items.filterNot { item -> item.id == itemId }) }
@@ -437,8 +488,8 @@ class CreateInvoiceViewModel @Inject constructor(
                     email = state.organizationEmail.trim().ifBlank { null },
                     phone = state.organizationMobile.trim().ifBlank { null },
                     mobile = state.organizationMobile.trim().ifBlank { null },
-                    taxNumber = state.organizationGstin.trim().ifBlank { null },
-                    gstin = state.organizationGstin.trim().ifBlank { null },
+                    taxNumber = state.organizationGstin.trim().uppercase().ifBlank { null },
+                    gstin = state.organizationGstin.trim().uppercase().ifBlank { null },
                     authorityName = state.authorityName.trim().ifBlank { null },
                     authorityDesignation = state.authorityDesignation.trim().ifBlank { null },
                     logoPath = state.organizationLogoPath,
@@ -459,8 +510,8 @@ class CreateInvoiceViewModel @Inject constructor(
                     email = state.customerEmail.trim().ifBlank { null },
                     phone = state.customerMobile.trim().ifBlank { null },
                     mobile = state.customerMobile.trim().ifBlank { null },
-                    taxNumber = state.customerGstin.trim().ifBlank { null },
-                    gstin = state.customerGstin.trim().ifBlank { null },
+                    taxNumber = state.customerGstin.trim().uppercase().ifBlank { null },
+                    gstin = state.customerGstin.trim().uppercase().ifBlank { null },
                     createdAt = existing?.customer?.createdAt ?: System.currentTimeMillis()
                 )
                 val customerId = if (existing == null) {
@@ -501,7 +552,7 @@ class CreateInvoiceViewModel @Inject constructor(
                     dateFormat = state.dateFormat,
                     showItemDescription = state.invoiceType == InvoiceType.ADVANCED && state.showItemDescription,
                     showItemDiscount = state.invoiceType == InvoiceType.ADVANCED && state.showItemDiscount,
-                    internationalNumbering = state.invoiceType == InvoiceType.ADVANCED && state.internationalNumbering,
+                    internationalNumbering = state.internationalNumbering,
                     roundOffMinor = calculation.roundOffMinor,
                     additionalNotes = state.additionalNotes.ifBlank { null },
                     termsAndConditions = state.termsAndConditions.ifBlank { null },
@@ -541,10 +592,11 @@ class CreateInvoiceViewModel @Inject constructor(
 
     private fun newState(type: InvoiceType): CreateInvoiceUiState = CreateInvoiceUiState(
         invoiceType = type,
-        organizationName = currentBusinessSettings.name,
-        organizationAddress = currentBusinessSettings.address,
-        organizationEmail = currentBusinessSettings.email,
-        organizationMobile = currentBusinessSettings.phone,
+        organizationName = "",
+        organizationAddress = "",
+        organizationEmail = "",
+        organizationMobile = "",
+        organizationLogoPath = null,
         invoiceNumber = "${currentInvoiceSettings.prefix}001",
         currencyCode = currentInvoiceSettings.currencyCode,
         currencySymbol = currentInvoiceSettings.currency.symbol,
@@ -556,4 +608,5 @@ class CreateInvoiceViewModel @Inject constructor(
         val nextId = maxOf(invoices.maxOfOrNull { it.id } ?: 0L, savedId) + 1L
         return "${currentInvoiceSettings.prefix}${nextId.toString().padStart(3, '0')}"
     }
+
 }

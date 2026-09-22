@@ -31,6 +31,13 @@ class InvoiceCalculationEngineTest {
         assertEquals(20_000L, result.totalMinor)
     }
 
+    @Test fun simpleInvoiceIncludesRoundOff() {
+        val result = InvoiceCalculationEngine.calculate(InvoiceType.SIMPLE, TaxOption.NON_TAXABLE,
+            listOf(item(quantity = 1.0)), roundOffMinor = 25L)
+        assertEquals(25L, result.roundOffMinor)
+        assertEquals(10_025L, result.totalMinor)
+    }
+
     @Test fun cgstAndSgstAreCalculatedIndependentlyAfterDiscount() {
         val result = InvoiceCalculationEngine.calculate(InvoiceType.ADVANCED, TaxOption.CGST_SGST,
             listOf(item(discount = 10.0, cgst = 9.0, sgst = 9.0)))

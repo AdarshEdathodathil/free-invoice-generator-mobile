@@ -35,8 +35,8 @@ data class InvoiceItemUiModel(
 data class CreateInvoiceUiState(
     val currentStep: Int = 1,
     val invoiceType: InvoiceType = InvoiceType.SIMPLE,
-    val organizationName: String = "Your Company",
-    val organizationAddress: String = "123 Business Street, City, State",
+    val organizationName: String = "",
+    val organizationAddress: String = "",
     val organizationCountry: String = "",
     val organizationEmail: String = "",
     val organizationMobile: String = "",

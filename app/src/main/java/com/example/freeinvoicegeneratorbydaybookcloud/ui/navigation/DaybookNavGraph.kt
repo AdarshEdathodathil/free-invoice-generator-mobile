@@ -1,6 +1,9 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.navigation
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,6 +19,7 @@ fun DaybookNavGraph(
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
 
     val createInvoiceViewModel: CreateInvoiceViewModel = viewModel()
     val homeViewModel: HomeViewModel = viewModel()
@@ -42,11 +46,6 @@ fun DaybookNavGraph(
         composable("onboarding") {
             OnboardingScreen(
                 onGetStarted = {
-                    navController.navigate("home") {
-                        popUpTo("onboarding") { inclusive = true }
-                    }
-                },
-                onSkip = {
                     navController.navigate("home") {
                         popUpTo("onboarding") { inclusive = true }
                     }
@@ -84,7 +83,14 @@ fun DaybookNavGraph(
         composable("templates") {
             TemplatesScreen(
                 viewModel = settingsViewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                showBottomNavigation = true,
+                onTabSelected = { route ->
+                    if (route != "templates") {
+                        if (route == "create") openNewInvoice()
+                        else navController.navigate(route) { popUpTo("home") }
+                    }
+                }
             )
         }
         composable("more") {
@@ -97,7 +103,7 @@ fun DaybookNavGraph(
                 onNavigateToHelp = { navController.navigate("help_support") },
                 onNavigateToAbout = { navController.navigate("about") },
                 onLogout = {
-                    navController.navigate("home") { popUpTo("home") { inclusive = true } }
+                    (context as? Activity)?.finishAffinity()
                 },
                 onTabSelected = { route ->
                     if (route != "more") {
@@ -169,8 +175,23 @@ fun DaybookNavGraph(
                     val route = if (createInvoiceViewModel.uiState.value.invoiceType == InvoiceType.ADVANCED) "advanced_org" else "create_details"
                     navController.popBackStack(route, false)
                 },
-                onCreateInvoiceSuccess = {
+                onSelectTemplate = {
+                    navController.navigate("create_template")
+                }
+            )
+        }
+        composable("create_template") {
+            CreateInvoiceTemplateStepScreen(
+                viewModel = createInvoiceViewModel,
+                onBack = { navController.popBackStack() },
+                onFinish = {
+                    val editing = createInvoiceViewModel.editingInvoiceId.value != null
                     createInvoiceViewModel.createInvoice { invoiceId ->
+                        Toast.makeText(
+                            context,
+                            if (editing) "Invoice updated successfully" else "Invoice created successfully",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         navController.navigate("invoice_preview/$invoiceId") {
                             popUpTo("home")
                         }
@@ -195,6 +216,7 @@ fun DaybookNavGraph(
                 },
                 onDelete = {
                     createInvoiceViewModel.deleteInvoice(invoiceId) {
+                        Toast.makeText(context, "Invoice deleted successfully", Toast.LENGTH_SHORT).show()
                         navController.navigate("invoices") {
                             popUpTo("home")
                         }

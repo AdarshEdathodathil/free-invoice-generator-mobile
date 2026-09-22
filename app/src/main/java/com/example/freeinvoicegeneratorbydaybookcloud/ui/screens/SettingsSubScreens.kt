@@ -1,5 +1,10 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -9,21 +14,27 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.DaybookBottomNavigation
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.DaybookTopBar
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.PrimaryButton
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.SettingsViewModel
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.ThemeMode
 import com.example.freeinvoicegeneratorbydaybookcloud.data.preferences.majorCurrencies
+import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
 
 @Composable
 fun OrganizationSettingsScreen(
@@ -34,13 +45,46 @@ fun OrganizationSettingsScreen(
     val savedAddress by viewModel.organizationAddress.collectAsStateWithLifecycle()
     val savedEmail by viewModel.userEmail.collectAsStateWithLifecycle()
     val savedPhone by viewModel.phoneNumber.collectAsStateWithLifecycle()
+    val savedLogoPath by viewModel.organizationLogoPath.collectAsStateWithLifecycle()
 
     var name by remember(savedName) { mutableStateOf(savedName) }
     var address by remember(savedAddress) { mutableStateOf(savedAddress) }
     var email by remember(savedEmail) { mutableStateOf(savedEmail) }
     var phone by remember(savedPhone) { mutableStateOf(savedPhone) }
+    var logoPath by remember(savedLogoPath) { mutableStateOf(savedLogoPath) }
+    var phoneCountryCode by remember(savedPhone) { mutableStateOf(countryForValue(savedPhone).dialCode) }
+    val validEmail = isValidEmail(email)
+    val validPhone = isValidMobile(phone)
+    val context = LocalContext.current
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            logoPath = it.toString()
+            Toast.makeText(context, "Logo uploaded successfully", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     SubScreenScaffold(title = "Organization Settings", onBack = onBack) {
+        OutlinedButton(
+            onClick = { logoPicker.launch(arrayOf("image/*")) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Business, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (logoPath == null) "Upload Logo" else "Change Logo")
+        }
+        if (logoPath != null) {
+            OrganizationSettingsLogoPreview(logoPath.orEmpty())
+            TextButton(
+                onClick = {
+                    logoPath = null
+                    Toast.makeText(context, "Logo removed", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Remove Logo")
+            }
+        }
         OutlinedTextField(
             value = name, onValueChange = { name = it },
             label = { Text("Company Name") },
@@ -57,24 +101,58 @@ fun OrganizationSettingsScreen(
         OutlinedTextField(
             value = email, onValueChange = { email = it },
             label = { Text("Email Address") },
+            placeholder = { Text("name@example.com") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
             singleLine = true
         )
-        OutlinedTextField(
-            value = phone, onValueChange = { phone = it },
-            label = { Text("Phone Number") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp),
-            singleLine = true
-        )
+        if (!validEmail) Text("Enter a valid email address.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SimpleChoiceMenu(
+                label = "Code",
+                value = phoneCountryCode,
+                options = invoiceCountries.map { it.dialCode }.distinct(),
+                modifier = Modifier.width(112.dp)
+            ) { selected ->
+                phone = combineMobile(selected, mobileNumberPart(phone, phoneCountryCode))
+                phoneCountryCode = selected
+            }
+            OutlinedTextField(
+                value = mobileNumberPart(phone, phoneCountryCode),
+                onValueChange = { phone = combineMobile(phoneCountryCode, it) },
+                label = { Text("Mobile Number") },
+                placeholder = { Text("9876543210") },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                singleLine = true
+            )
+        }
+        if (!validPhone) Text("Enter a valid mobile number.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(8.dp))
         PrimaryButton(
             text = "Save Changes",
+            enabled = validEmail && validPhone,
             onClick = {
-                viewModel.updateOrganization(name, address, email, phone)
+                viewModel.updateOrganization(name, address, email, phone, logoPath)
                 onBack()
             }
+        )
+    }
+}
+
+@Composable
+private fun OrganizationSettingsLogoPreview(uri: String) {
+    val context = LocalContext.current
+    val logoResolver = remember { LogoResolver() }
+    val bitmap = remember(uri) { logoResolver.decode(context, uri) }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Organization logo preview",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(88.dp)
         )
     }
 }
@@ -154,7 +232,9 @@ fun InvoiceSettingsScreen(
 @Composable
 fun TemplatesScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    showBottomNavigation: Boolean = false,
+    onTabSelected: (String) -> Unit = {}
 ) {
     val invoiceSettings by viewModel.invoiceSettings.collectAsStateWithLifecycle()
     val templates = listOf(
@@ -230,7 +310,19 @@ fun TemplatesScreen(
         )
     )
 
-    SubScreenScaffold(title = "Invoice Templates", onBack = onBack) {
+    SubScreenScaffold(
+        title = "Invoice Templates",
+        onBack = onBack,
+        showBack = !showBottomNavigation,
+        bottomBar = {
+            if (showBottomNavigation) {
+                DaybookBottomNavigation(
+                    currentRoute = "templates",
+                    onTabSelected = onTabSelected
+                )
+            }
+        }
+    ) {
         Text(
             text = "Choose your preferred invoice layout template.",
             fontSize = 14.sp,
@@ -354,51 +446,8 @@ fun AppearanceScreen(
 ) {
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val systemInDark = isSystemInDarkTheme()
-    val isDark = when (themeMode) {
-        ThemeMode.SYSTEM -> systemInDark
-        ThemeMode.DARK -> true
-        ThemeMode.LIGHT -> false
-    }
 
     SubScreenScaffold(title = "Appearance", onBack = onBack) {
-        // Quick toggle card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Dark Mode",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = if (isDark) "Dark mode is currently active" else "Light mode is currently active",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = isDark,
-                    onCheckedChange = { checked ->
-                        viewModel.setThemeMode(if (checked) ThemeMode.DARK else ThemeMode.LIGHT)
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
         Text(
             text = "THEME PREFERENCE",
             fontSize = 11.sp,
@@ -535,16 +584,19 @@ fun AboutScreen(onBack: () -> Unit) {
 fun SubScreenScaffold(
     title: String,
     onBack: () -> Unit,
+    showBack: Boolean = true,
+    bottomBar: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     Scaffold(
         topBar = {
             DaybookTopBar(
                 title = title,
-                onNavigationClick = onBack,
+                onNavigationClick = if (showBack) onBack else null,
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
             )
         },
+        bottomBar = bottomBar,
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(

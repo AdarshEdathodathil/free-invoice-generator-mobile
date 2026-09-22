@@ -1,8 +1,12 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,7 +40,9 @@ import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.InvoiceType
 import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.PaymentMethod
 import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.TaxOption
 import com.example.freeinvoicegeneratorbydaybookcloud.pdf.InvoicePdfGenerator
+import com.example.freeinvoicegeneratorbydaybookcloud.util.InvoiceDownloadNotifier
 import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
+import com.example.freeinvoicegeneratorbydaybookcloud.util.amountInWords
 
 @Composable
 fun InvoicePreviewScreen(
@@ -52,12 +59,28 @@ fun InvoicePreviewScreen(
     val invoice = invoices.firstOrNull { it.id == invoiceId }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    var pendingDownloadNotificationUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val uri = pendingDownloadNotificationUri
+        pendingDownloadNotificationUri = null
+        if (granted && uri != null) {
+            InvoiceDownloadNotifier.showDownloaded(context, uri)
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.previewEvents.collect { event ->
             when (event) {
                 is InvoicePreviewEvent.DownloadSuccess -> {
                     Toast.makeText(context, "Invoice downloaded successfully", Toast.LENGTH_SHORT).show()
+                    if (InvoiceDownloadNotifier.canShowNotification(context)) {
+                        InvoiceDownloadNotifier.showDownloaded(context, event.uri)
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pendingDownloadNotificationUri = event.uri
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
                 }
                 InvoicePreviewEvent.DownloadError -> {
                     Toast.makeText(context, "Unable to download invoice", Toast.LENGTH_SHORT).show()
@@ -232,6 +255,15 @@ fun InvoicePreviewScreen(
                                     color = templateStyle.onHeaderColor.copy(alpha = 0.8f)
                                 )
                             }
+                            invoice.organizationLogoPath?.let {
+                                OrganizationLogo(
+                                    uri = it,
+                                    modifier = Modifier
+                                        .widthIn(max = 92.dp)
+                                        .height(54.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                )
+                            }
                         }
                     }
 
@@ -245,10 +277,10 @@ fun InvoicePreviewScreen(
                         // From / To row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                invoice.organizationLogoPath?.let { OrganizationLogo(it) }
                                 Text(
                                     text = "FROM",
                                     fontSize = 10.sp,
@@ -328,7 +360,8 @@ fun InvoicePreviewScreen(
                         // Items table
                         Column {
                             // Header
-                            Row(
+                            Text(
+                                text = "ITEMS",
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(
@@ -336,40 +369,10 @@ fun InvoicePreviewScreen(
                                         RoundedCornerShape(8.dp)
                                     )
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Description",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(2f),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Qty",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(0.6f),
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Price",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.End,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Total",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.End,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
                             Spacer(modifier = Modifier.height(4.dp))
 
@@ -435,6 +438,11 @@ fun InvoicePreviewScreen(
                                 )
                             }
                             if (invoice.roundOffMinor != 0L) TotalRow("Round Off", money(invoice.roundOffMinor))
+                            PreviewTextBlock(
+                                "AMOUNT IN WORDS",
+                                amountInWords(invoice.totalMinor, invoice.currencyCode, invoice.decimalPlaces),
+                                valueFontSizeSp = 14
+                            )
                         }
 
                         if (invoice.invoiceType == InvoiceType.ADVANCED && invoice.paymentDetails?.paymentMethod != PaymentMethod.NONE) {
@@ -451,25 +459,6 @@ fun InvoicePreviewScreen(
                         if (invoice.additionalNotes.isNotBlank()) PreviewTextBlock("NOTES", invoice.additionalNotes)
                         if (invoice.termsAndConditions.isNotBlank()) PreviewTextBlock("TERMS AND CONDITIONS", invoice.termsAndConditions)
 
-                        // Thank you
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    templateStyle.accentColor.copy(alpha = 0.12f),
-                                    RoundedCornerShape(10.dp)
-                                )
-                                .padding(12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Thank you for your business! 🙏",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = templateStyle.accentColor,
-                                textAlign = TextAlign.Center
-                            )
-                        }
                     }
                 }
             }
@@ -576,7 +565,13 @@ private fun invoicePreviewTemplateStyle(templateId: String): InvoicePreviewTempl
 }
 
 @Composable
-private fun OrganizationLogo(uri: String) {
+private fun OrganizationLogo(
+    uri: String,
+    modifier: Modifier = Modifier
+        .widthIn(max = 96.dp)
+        .height(64.dp),
+    contentAlignment: Alignment = Alignment.CenterStart
+) {
     val context = LocalContext.current
     val logoResolver = remember { LogoResolver() }
     val bitmap = remember(uri) {
@@ -585,11 +580,8 @@ private fun OrganizationLogo(uri: String) {
 
     if (bitmap != null) {
         Box(
-            modifier = Modifier
-                .widthIn(max = 96.dp)
-                .height(64.dp)
-                .padding(bottom = 8.dp),
-            contentAlignment = Alignment.CenterStart
+            modifier = modifier,
+            contentAlignment = contentAlignment
         ) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
@@ -635,41 +627,81 @@ fun InvoicePreviewRow(
     internationalNumbering: Boolean,
     bgColor: Color = Color.Transparent
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(bgColor, RoundedCornerShape(6.dp))
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = description,
             fontSize = 13.sp,
-            modifier = Modifier.weight(2f),
-            color = MaterialTheme.colorScheme.onSurface
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
         )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            ItemAmountCell(
+                label = "Qty",
+                value = qty.toString(),
+                modifier = Modifier.weight(0.7f),
+                textAlign = TextAlign.Start
+            )
+            ItemAmountCell(
+                label = "Price",
+                value = formatMoney(unitPriceMinor, currencySymbol, decimalPlaces, internationalNumbering),
+                modifier = Modifier.weight(1.45f),
+                textAlign = TextAlign.End
+            )
+            ItemAmountCell(
+                label = "Total",
+                value = formatMoney(totalMinor, currencySymbol, decimalPlaces, internationalNumbering),
+                modifier = Modifier.weight(1.45f),
+                textAlign = TextAlign.End,
+                emphasize = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun ItemAmountCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+    emphasize: Boolean = false
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = when (textAlign) {
+            TextAlign.End -> Alignment.End
+            TextAlign.Center -> Alignment.CenterHorizontally
+            else -> Alignment.Start
+        },
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
         Text(
-            text = qty.toString(),
-            fontSize = 13.sp,
-            modifier = Modifier.weight(0.6f),
-            textAlign = TextAlign.Center,
+            text = label,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = formatMoney(unitPriceMinor, currencySymbol, decimalPlaces, internationalNumbering),
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.End,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = formatMoney(totalMinor, currencySymbol, decimalPlaces, internationalNumbering),
-            fontSize = 13.sp,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.End,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
+            text = value,
+            fontSize = if (emphasize) 13.sp else 12.sp,
+            fontWeight = if (emphasize) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (emphasize) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = textAlign,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -686,10 +718,10 @@ private fun PreviewDetail(value: String, prefix: String = "", alignEnd: Boolean 
 }
 
 @Composable
-private fun PreviewTextBlock(label: String, value: String) {
+private fun PreviewTextBlock(label: String, value: String, valueFontSizeSp: Int = 12) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 12.sp)
+        Text(value, fontSize = valueFontSizeSp.sp)
     }
 }
 

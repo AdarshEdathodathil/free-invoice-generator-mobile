@@ -1,8 +1,10 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,13 +18,18 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.freeinvoicegeneratorbydaybookcloud.data.preferences.majorCurrencies
+import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.DateFormatOption
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.*
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.CreateInvoiceViewModel
+import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -48,11 +55,15 @@ fun CreateInvoiceDetailsScreen(
     var customerName by remember { mutableStateOf(uiState.customerName) }
     var customerAddress by remember { mutableStateOf(uiState.customerAddress) }
     var logoPath by remember(uiState.organizationLogoPath) { mutableStateOf(uiState.organizationLogoPath) }
+    var currencyCode by remember(uiState.currencyCode) { mutableStateOf(uiState.currencyCode) }
+    var dateFormat by remember(uiState.dateFormat) { mutableStateOf(uiState.dateFormat) }
+    val selectedCurrency = majorCurrencies.firstOrNull { it.code == currencyCode } ?: majorCurrencies.first()
     val context = LocalContext.current
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
             runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             logoPath = it.toString()
+            Toast.makeText(context, "Logo uploaded successfully", Toast.LENGTH_SHORT).show()
         }
     }
     var showInvoiceDatePicker by remember { mutableStateOf(false) }
@@ -115,6 +126,8 @@ fun CreateInvoiceDetailsScreen(
                             viewModel.updateOrganization(organizationName, organizationAddress)
                             viewModel.updateOrganizationLogo(logoPath)
                             viewModel.updateInvoiceDetails(invoiceNumber, invoiceDate, dueDate)
+                            viewModel.updateCurrency(selectedCurrency.code, selectedCurrency.symbol, uiState.decimalPlaces)
+                            viewModel.updateDateFormat(dateFormat)
                             viewModel.updateCustomer(customerName, customerAddress)
                             viewModel.setStep(2)
                             onNext()
@@ -132,7 +145,7 @@ fun CreateInvoiceDetailsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
-            InvoiceStepIndicator(currentStep = 1)
+            InvoiceStepIndicator(currentStep = 1, steps = listOf("Details", "Items", "Additional", "Review", "Template"))
 
             Column(
                 modifier = Modifier
@@ -146,12 +159,14 @@ fun CreateInvoiceDetailsScreen(
                         value = organizationName,
                         onValueChange = { organizationName = it },
                         label = "Business Name",
+                        placeholder = "Enter business name",
                         singleLine = true
                     )
                     DaybookTextField(
                         value = organizationAddress,
                         onValueChange = { organizationAddress = it },
                         label = "Address",
+                        placeholder = "Enter business address",
                         minLines = 2
                     )
                     OutlinedButton(
@@ -162,6 +177,18 @@ fun CreateInvoiceDetailsScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(if (logoPath == null) "Choose Logo" else "Change Logo")
                     }
+                    if (logoPath != null) {
+                        TextButton(
+                            onClick = {
+                                logoPath = null
+                                Toast.makeText(context, "Logo removed", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Remove Logo")
+                        }
+                    }
+                    logoPath?.let { LogoPreview(it) }
                 }
 
                 // ── Bill To (Customer) ────────────────────────────────
@@ -188,6 +215,22 @@ fun CreateInvoiceDetailsScreen(
                         label = "Invoice Number",
                         singleLine = true,
                         placeholder = "INV-001"
+                    )
+                    SimpleChoiceMenu(
+                        label = "Currency",
+                        value = selectedCurrency.displayName,
+                        options = majorCurrencies.map { it.displayName },
+                        onSelect = { selected ->
+                            currencyCode = majorCurrencies.first { it.displayName == selected }.code
+                        }
+                    )
+                    SimpleChoiceMenu(
+                        label = "Date Format",
+                        value = dateFormat.label,
+                        options = DateFormatOption.entries.map { it.label },
+                        onSelect = { label ->
+                            dateFormat = DateFormatOption.entries.first { it.label == label }
+                        }
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -218,6 +261,23 @@ fun CreateInvoiceDetailsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun LogoPreview(uri: String) {
+    val context = LocalContext.current
+    val logoResolver = remember { LogoResolver() }
+    val bitmap = remember(uri) { logoResolver.decode(context, uri) }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "Logo preview",
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(72.dp)
+        )
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,6 +60,7 @@ import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.EmptyState
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.theme.DarkNavy
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.HomeViewModel
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoiceUiModel
+import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
 import com.example.freeinvoicegeneratorbydaybookcloud.util.formatMoney
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -73,6 +78,7 @@ fun HomeScreen(
     onTabSelected: (String) -> Unit
 ) {
     val organizationName by viewModel.organizationName.collectAsStateWithLifecycle()
+    val organizationLogoPath by viewModel.organizationLogoPath.collectAsStateWithLifecycle()
     val recentInvoices by viewModel.recentInvoices.collectAsStateWithLifecycle()
     val greeting = rememberTimeBasedGreeting()
     val displayName = organizationName?.takeIf { it.isNotBlank() } ?: "there"
@@ -96,6 +102,7 @@ fun HomeScreen(
             item {
                 HomeHeader(
                     avatarText = displayName.firstOrNull()?.uppercase().orEmpty().ifBlank { "D" },
+                    logoPath = organizationLogoPath,
                     onAvatarClick = onNavigateToSettings
                 )
             }
@@ -145,6 +152,7 @@ fun HomeScreen(
 @Composable
 private fun HomeHeader(
     avatarText: String,
+    logoPath: String?,
     onAvatarClick: () -> Unit
 ) {
     Row(
@@ -154,14 +162,14 @@ private fun HomeHeader(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Daybook.Cloud",
+                text = "Free Invoice Generator",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = DarkNavy,
+                color = MaterialTheme.colorScheme.onBackground,
                 lineHeight = 28.sp
             )
             Text(
-                text = "Simple Invoicing. Smarter Business.",
+                text = "by Daybook.Cloud",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium
@@ -176,12 +184,24 @@ private fun HomeHeader(
                 .clickable(onClick = onAvatarClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = avatarText,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 15.sp
-            )
+            val context = LocalContext.current
+            val logoResolver = remember { LogoResolver() }
+            val bitmap = remember(logoPath) { logoResolver.decode(context, logoPath) }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Organization logo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Text(
+                    text = avatarText,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+            }
         }
     }
 }
@@ -227,7 +247,7 @@ private fun WelcomeCard(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Hello, $organizationName \uD83D\uDC4B",
+                    text = "Hello, $organizationName",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = DarkNavy,
@@ -335,7 +355,7 @@ private fun SectionTitle(
             text = title,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = DarkNavy
+            color = MaterialTheme.colorScheme.onBackground
         )
         Text(
             text = "$actionText ->",
@@ -408,7 +428,7 @@ private fun RecentInvoiceRow(
                 text = invoice.invoiceNumber,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                color = DarkNavy,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -437,7 +457,7 @@ private fun RecentInvoiceRow(
                 ),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = DarkNavy
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
         Icon(

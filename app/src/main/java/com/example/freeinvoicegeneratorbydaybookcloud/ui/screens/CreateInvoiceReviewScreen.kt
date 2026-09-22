@@ -8,8 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -18,21 +17,29 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.*
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.CreateInvoiceViewModel
+import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.formatStoredDate
+import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.parseDate
+import com.example.freeinvoicegeneratorbydaybookcloud.util.amountInWords
 import com.example.freeinvoicegeneratorbydaybookcloud.util.formatMoney
 import com.example.freeinvoicegeneratorbydaybookcloud.domain.model.InvoiceType
+import java.math.BigDecimal
 
 @Composable
 fun CreateInvoiceReviewScreen(
     viewModel: CreateInvoiceViewModel,
     onBack: () -> Unit,
     onEditDetails: () -> Unit,
-    onCreateInvoiceSuccess: () -> Unit
+    onSelectTemplate: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isSaving by viewModel.isSaving.collectAsStateWithLifecycle()
     val saveError by viewModel.saveError.collectAsStateWithLifecycle()
-    val editingInvoiceId by viewModel.editingInvoiceId.collectAsStateWithLifecycle()
     val advanced = uiState.invoiceType == InvoiceType.ADVANCED
+    val formattedInvoiceDate = formatStoredDate(parseDate(uiState.invoiceDate), uiState.dateFormat)
+    val formattedDueDate = formatStoredDate(parseDate(uiState.dueDate), uiState.dateFormat)
+    var roundOff by remember(uiState.decimalPlaces) {
+        mutableStateOf(BigDecimal.valueOf(uiState.roundOffMinor, uiState.decimalPlaces).toPlainString())
+    }
 
     Scaffold(
         topBar = {
@@ -69,10 +76,12 @@ fun CreateInvoiceReviewScreen(
                     PrimaryButton(
                         text = when {
                             isSaving -> "Saving…"
-                            editingInvoiceId != null -> "Update Invoice"
-                            else -> "Create Invoice ✓"
+                            else -> "Select Template"
                         },
-                        onClick = onCreateInvoiceSuccess,
+                        onClick = {
+                            viewModel.updateItemOptions(uiState.internationalNumbering, roundOff.toMinor(uiState.decimalPlaces))
+                            onSelectTemplate()
+                        },
                         modifier = Modifier.weight(1f),
                         enabled = !isSaving
                     )
@@ -89,8 +98,8 @@ fun CreateInvoiceReviewScreen(
         ) {
             InvoiceStepIndicator(
                 currentStep = if (advanced) 6 else 4,
-                steps = if (advanced) listOf("Business", "Customer", "Details", "Items", "Payment", "Review")
-                else listOf("Details", "Items", "Additional", "Review")
+                steps = if (advanced) listOf("Business", "Customer", "Details", "Items", "Payment", "Review", "Template")
+                else listOf("Details", "Items", "Additional", "Review", "Template")
             )
 
             if (saveError != null) {
@@ -209,11 +218,11 @@ fun CreateInvoiceReviewScreen(
                         }
                         Column {
                             Text(text = "DATE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
-                            Text(text = uiState.invoiceDate, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(text = formattedInvoiceDate, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
                         Column {
                             Text(text = "DUE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 0.5.sp)
-                            Text(text = uiState.dueDate, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(text = formattedDueDate, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
                     }
 
@@ -261,6 +270,17 @@ fun CreateInvoiceReviewScreen(
                         }
                     }
 
+                    OutlinedTextField(
+                        value = roundOff,
+                        onValueChange = {
+                            roundOff = signedDecimalInput(it)
+                            viewModel.updateItemOptions(uiState.internationalNumbering, roundOff.toMinor(uiState.decimalPlaces))
+                        },
+                        label = { Text("Round Off (${uiState.currencyCode})") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                     Row(
@@ -281,7 +301,11 @@ fun CreateInvoiceReviewScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    if (uiState.roundOffMinor != 0L) ReviewTotalRow("Round Off", uiState.roundOffMinor, uiState.currencySymbol, uiState.decimalPlaces, uiState.internationalNumbering)
+                    ReviewBlock(
+                        "AMOUNT IN WORDS",
+                        amountInWords(uiState.totalMinor, uiState.currencyCode, uiState.decimalPlaces),
+                        valueFontSizeSp = 14
+                    )
                     if (advanced && uiState.paymentMethod != com.example.freeinvoicegeneratorbydaybookcloud.domain.model.PaymentMethod.NONE) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Text("PAYMENT", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -315,9 +339,17 @@ private fun ReviewTotalRow(label: String, amount: Long, symbol: String, decimals
 }
 
 @Composable
-private fun ReviewBlock(label: String, value: String) {
+private fun ReviewBlock(label: String, value: String, valueFontSizeSp: Int = 12) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontSize = 12.sp)
+        Text(value, fontSize = valueFontSizeSp.sp)
     }
+}
+
+private fun signedDecimalInput(value: String): String {
+    val negative = value.startsWith("-")
+    val cleaned = value.filter { it.isDigit() || it == '.' }
+    val firstDot = cleaned.indexOf('.')
+    val decimal = if (firstDot == -1) cleaned else cleaned.take(firstDot + 1) + cleaned.drop(firstDot + 1).replace(".", "")
+    return if (negative) "-$decimal" else decimal
 }

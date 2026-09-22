@@ -1,5 +1,6 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,16 +15,21 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.*
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.SettingsViewModel
+import com.example.freeinvoicegeneratorbydaybookcloud.util.LogoResolver
 
 @Composable
 fun MoreScreen(
@@ -39,6 +45,7 @@ fun MoreScreen(
 ) {
     val orgName by viewModel.organizationName.collectAsStateWithLifecycle()
     val email by viewModel.userEmail.collectAsStateWithLifecycle()
+    val logoPath by viewModel.organizationLogoPath.collectAsStateWithLifecycle()
 
     Scaffold(
         bottomBar = {
@@ -73,12 +80,24 @@ fun MoreScreen(
                             .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = orgName.take(1).uppercase(),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
-                        )
+                        val context = LocalContext.current
+                        val logoResolver = remember { LogoResolver() }
+                        val bitmap = remember(logoPath) { logoResolver.decode(context, logoPath) }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "Organization logo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Text(
+                                text = orgName.take(1).uppercase(),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            )
+                        }
                     }
                     Column {
                         Text(
@@ -135,17 +154,6 @@ fun MoreScreen(
                     )
                 ) {
                     Column {
-                        SettingsRow(
-                            icon = Icons.Default.Business,
-                            title = "Organization",
-                            subtitle = "Name, logo, address",
-                            onClick = onNavigateToOrgSettings
-                        )
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            thickness = 0.5.dp
-                        )
                         SettingsRow(
                             icon = Icons.Default.Receipt,
                             title = "Invoice Settings",
@@ -217,7 +225,7 @@ fun MoreScreen(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Logout
+                // Close app
                 Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
@@ -233,13 +241,13 @@ fun MoreScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Logout",
+                            contentDescription = "Close app",
                             tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Log Out",
+                            text = "Close App",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.error

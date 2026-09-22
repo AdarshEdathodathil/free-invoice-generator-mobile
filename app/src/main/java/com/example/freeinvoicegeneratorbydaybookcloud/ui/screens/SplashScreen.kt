@@ -69,18 +69,19 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "Daybook",
-                fontSize = 34.sp,
+                text = "Free Invoice Generator",
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                letterSpacing = (-0.5).sp
+                textAlign = TextAlign.Center,
+                lineHeight = 38.sp
             )
             Text(
-                text = ".Cloud",
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Light,
+                text = "by Daybook.Cloud",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
                 color = Color.White.copy(alpha = 0.8f),
-                letterSpacing = (-0.5).sp
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(12.dp))

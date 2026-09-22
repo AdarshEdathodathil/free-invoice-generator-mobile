@@ -28,14 +28,13 @@ object InvoiceCalculationEngine {
         val subtotal = calculatedItems.sumOf { it.lineSubtotalMinor }
         val discount = calculatedItems.sumOf { it.discountMinor }
         val tax = calculatedItems.sumOf { it.taxAmountMinor }
-        val appliedRoundOff = if (invoiceType == InvoiceType.ADVANCED) roundOffMinor else 0L
         return InvoiceCalculation(
             items = calculatedItems,
             subtotalMinor = subtotal,
             discountMinor = discount,
             taxAmountMinor = tax,
-            roundOffMinor = appliedRoundOff,
-            totalMinor = subtotal - discount + tax + appliedRoundOff
+            roundOffMinor = roundOffMinor,
+            totalMinor = subtotal - discount + tax + roundOffMinor
         )
     }
 

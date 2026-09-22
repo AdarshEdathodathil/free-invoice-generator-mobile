@@ -30,20 +30,17 @@ fun CreateInvoiceItemsScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Un
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("1") }
-    var price by remember { mutableStateOf("100") }
+    var price by remember { mutableStateOf("") }
     var discount by remember { mutableStateOf("0") }
     var tax by remember { mutableStateOf(state.taxRatePercent.toString()) }
     var international by remember(state.internationalNumbering) { mutableStateOf(state.internationalNumbering) }
-    var roundOff by remember(state.roundOffMinor) {
-        mutableStateOf(BigDecimal.valueOf(state.roundOffMinor, state.decimalPlaces).toPlainString())
-    }
 
     fun open(item: InvoiceItemUiModel? = null) {
         editing = item
         name = item?.name.orEmpty()
         description = item?.description.orEmpty()
         quantity = item?.quantity?.toString() ?: "1"
-        price = item?.let { BigDecimal.valueOf(it.unitPriceMinor, state.decimalPlaces).toPlainString() } ?: "100"
+        price = item?.let { BigDecimal.valueOf(it.unitPriceMinor, state.decimalPlaces).toPlainString() } ?: ""
         discount = item?.discountPercent?.toString() ?: "0"
         tax = when (state.taxOption) {
             TaxOption.CGST_SGST -> item?.let { it.cgstPercent + it.sgstPercent }?.toString()
@@ -59,7 +56,7 @@ fun CreateInvoiceItemsScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Un
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 SecondaryButton("Back", onBack, Modifier.weight(1f))
                 PrimaryButton(if (advanced) "Payment" else "Additional", {
-                    if (advanced) viewModel.updateItemOptions(international, roundOff.toMinor(state.decimalPlaces))
+                    viewModel.updateItemOptions(international, state.roundOffMinor)
                     viewModel.setStep(if (advanced) 5 else 3)
                     onNext()
                 }, Modifier.weight(1f), state.items.isNotEmpty())
@@ -73,14 +70,12 @@ fun CreateInvoiceItemsScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Un
                 else listOf("Details", "Items", "Additional", "Review")
             )
             LazyColumn(Modifier.fillMaxWidth().weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (advanced) item {
+                item {
                     FormCard("ITEM OPTIONS") {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text("International numbering", Modifier.weight(1f))
                             Switch(international, { international = it })
                         }
-                        OutlinedTextField(roundOff, { roundOff = it }, label = { Text("Round Off (${state.currencyCode})") },
-                            singleLine = true, modifier = Modifier.fillMaxWidth())
                     }
                 }
                 item { SectionHeader("Invoice Items", if (state.items.isNotEmpty()) "Add" else null, { open() }) }
@@ -105,13 +100,13 @@ fun CreateInvoiceItemsScreen(viewModel: CreateInvoiceViewModel, onBack: () -> Un
             if (advanced && state.showItemDescription) OutlinedTextField(description, { description = it },
                 label = { Text("Description") }, minLines = 2, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(quantity, { quantity = it }, label = { Text("Qty") }, singleLine = true, modifier = Modifier.weight(1f))
-                OutlinedTextField(price, { price = it }, label = { Text("Price") }, singleLine = true, modifier = Modifier.weight(1.4f))
+                OutlinedTextField(quantity, { quantity = wholeNumberInput(it) }, label = { Text("Qty") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(price, { price = decimalInput(it) }, label = { Text("Price") }, placeholder = { Text("0.00") }, singleLine = true, modifier = Modifier.weight(1.4f))
             }
             if (advanced) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.showItemDiscount) OutlinedTextField(discount, { discount = it }, label = { Text("Discount %") },
+                if (state.showItemDiscount) OutlinedTextField(discount, { discount = decimalInput(it) }, label = { Text("Discount %") },
                     singleLine = true, modifier = Modifier.weight(1f))
-                if (state.taxOption != TaxOption.NON_TAXABLE) OutlinedTextField(tax, { tax = it }, label = { Text("Tax %") },
+                if (state.taxOption != TaxOption.NON_TAXABLE) OutlinedTextField(tax, { tax = decimalInput(it) }, label = { Text("Tax %") },
                     singleLine = true, modifier = Modifier.weight(1f))
             }
         } },
