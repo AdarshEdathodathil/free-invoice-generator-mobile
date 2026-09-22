@@ -120,7 +120,7 @@ fun InvoiceSettingsScreen(
                 readOnly = true,
                 label = { Text("Default Currency") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = currencyExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, true),
                 shape = RoundedCornerShape(10.dp),
                 singleLine = true
             )

@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -197,7 +198,7 @@ fun MoreScreen(
                             thickness = 0.5.dp
                         )
                         SettingsRow(
-                            icon = Icons.Default.Help,
+                            icon = Icons.AutoMirrored.Filled.Help,
                             title = "Help & Support",
                             onClick = onNavigateToHelp
                         )

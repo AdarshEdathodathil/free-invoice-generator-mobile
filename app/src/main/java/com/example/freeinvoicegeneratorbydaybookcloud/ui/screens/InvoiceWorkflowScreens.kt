@@ -10,10 +10,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,7 +57,7 @@ fun InvoiceTypeSelectionScreen(
         ) {
             Text("Choose invoice type", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             InvoiceTypeCard(
-                icon = Icons.Default.ReceiptLong,
+                icon = Icons.AutoMirrored.Filled.ReceiptLong,
                 title = "Simple Invoice",
                 description = "Minimal invoice for quick billing.",
                 onClick = { viewModel.selectInvoiceType(InvoiceType.SIMPLE); onSimple() }
@@ -272,7 +272,7 @@ private fun ChoiceMenu(label: String, value: String, options: List<String>, onSe
     ExposedDropdownMenuBox(expanded, { expanded = it }) {
         OutlinedTextField(value, {}, readOnly = true, label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor())
+            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, true))
         ExposedDropdownMenu(expanded, { expanded = false }) {
             options.forEach { DropdownMenuItem({ Text(it) }, { onSelect(it); expanded = false }) }
         }

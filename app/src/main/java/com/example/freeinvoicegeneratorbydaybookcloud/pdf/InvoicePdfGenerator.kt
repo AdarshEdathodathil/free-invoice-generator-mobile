@@ -27,7 +27,7 @@ import java.io.FileOutputStream
 import javax.inject.Inject
 
 class InvoicePdfGenerator @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val logoResolver: LogoResolver
 ) {
     fun createSharePdf(invoice: InvoiceUiModel): Result<File> = runCatching {

@@ -35,10 +35,10 @@ android {
     buildFeatures {
         compose = true
     }
-    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
 }
 
-// Room schema export directory — KSP processor argument
+// Room schema export directory - KSP processor argument
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
