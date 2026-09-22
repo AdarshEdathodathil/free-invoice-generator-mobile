@@ -15,7 +15,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -312,7 +314,11 @@ fun CreateInvoiceTemplateStepScreen(
     val selectedTemplateId by viewModel.selectedTemplateId.collectAsStateWithLifecycle()
     val advanced = state.invoiceType == InvoiceType.ADVANCED
     var selected by remember(selectedTemplateId) { mutableStateOf(selectedTemplateId) }
-    val templates = invoiceTemplateChoices()
+    var templateSearchQuery by remember { mutableStateOf("") }
+    val templates = invoiceTemplateCatalog()
+    val filteredTemplates = remember(templateSearchQuery, templates) {
+        templates.filter { it.matchesSearch(templateSearchQuery) }
+    }
 
     WorkflowScaffold(
         title = "Select Template",
@@ -326,24 +332,47 @@ fun CreateInvoiceTemplateStepScreen(
         }
     ) {
         FormCard("TEMPLATE") {
-            templates.forEach { template ->
-                OutlinedCard(
-                    onClick = { selected = template.id },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            OutlinedTextField(
+                value = templateSearchQuery,
+                onValueChange = { templateSearchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search templates") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (templateSearchQuery.isNotBlank()) {
+                        IconButton(onClick = { templateSearchQuery = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear template search")
+                        }
+                    }
+                }
+            )
+            if (filteredTemplates.isEmpty()) {
+                Text(
+                    text = "No templates found.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp
+                )
+            } else {
+                filteredTemplates.forEach { template ->
+                    OutlinedCard(
+                        onClick = { selected = template.id },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        RadioButton(
-                            selected = selected == template.id,
-                            onClick = { selected = template.id }
-                        )
-                        Column(Modifier.weight(1f)) {
-                            Text(template.title, fontWeight = FontWeight.SemiBold)
-                            Text(template.subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            RadioButton(
+                                selected = selected == template.id,
+                                onClick = { selected = template.id }
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(template.title, fontWeight = FontWeight.SemiBold)
+                                Text(template.description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            }
                         }
                     }
                 }
@@ -419,25 +448,6 @@ private fun TaxOption.label() = when (this) {
     TaxOption.IGST -> "IGST"
     TaxOption.NON_TAXABLE -> "Non Taxable"
 }
-
-private data class CreateTemplateChoice(
-    val id: String,
-    val title: String,
-    val subtitle: String
-)
-
-private fun invoiceTemplateChoices() = listOf(
-    CreateTemplateChoice("modern_teal", "Modern Teal", "Clean minimal default layout."),
-    CreateTemplateChoice("classic_business", "Classic Business", "Traditional sections and totals."),
-    CreateTemplateChoice("elegant_blue", "Elegant Blue", "Polished blue business accents."),
-    CreateTemplateChoice("minimal_black", "Minimal Black", "Formal monochrome layout."),
-    CreateTemplateChoice("soft_green", "Soft Green", "Calm green highlight panels."),
-    CreateTemplateChoice("premium_gold", "Premium Gold", "Warm premium accents."),
-    CreateTemplateChoice("corporate_slate", "Corporate Slate", "Dense B2B structure."),
-    CreateTemplateChoice("creative_coral", "Creative Coral", "Modern creative highlights."),
-    CreateTemplateChoice("royal_purple", "Royal Purple", "Refined purple accents."),
-    CreateTemplateChoice("clean_ledger", "Clean Ledger", "Compact ledger-inspired format.")
-)
 
 @Composable
 private fun FieldError(message: String) {

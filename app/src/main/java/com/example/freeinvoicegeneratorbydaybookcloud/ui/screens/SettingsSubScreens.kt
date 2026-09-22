@@ -16,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -237,78 +239,11 @@ fun TemplatesScreen(
     onTabSelected: (String) -> Unit = {}
 ) {
     val invoiceSettings by viewModel.invoiceSettings.collectAsStateWithLifecycle()
-    val templates = listOf(
-        InvoiceTemplateOption(
-            "modern_teal",
-            "Modern Teal (Default)",
-            "Clean minimal layout matching Daybook.Cloud brand identity.",
-            MaterialTheme.colorScheme.primary,
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-        ),
-        InvoiceTemplateOption(
-            "classic_business",
-            "Classic Business",
-            "Traditional invoice layout with crisp sections and clear totals.",
-            Color(0xFF1F2937),
-            Color(0xFFF3F4F6)
-        ),
-        InvoiceTemplateOption(
-            "elegant_blue",
-            "Elegant Blue",
-            "Polished blue accents for consultants and service businesses.",
-            Color(0xFF2563EB),
-            Color(0xFFEFF6FF)
-        ),
-        InvoiceTemplateOption(
-            "minimal_black",
-            "Minimal Black",
-            "High-contrast monochrome design for a formal professional look.",
-            Color(0xFF111827),
-            Color(0xFFF8FAFC)
-        ),
-        InvoiceTemplateOption(
-            "soft_green",
-            "Soft Green",
-            "Fresh, friendly layout with calm green highlight panels.",
-            Color(0xFF059669),
-            Color(0xFFECFDF5)
-        ),
-        InvoiceTemplateOption(
-            "premium_gold",
-            "Premium Gold",
-            "Warm gold accents for premium services and boutique brands.",
-            Color(0xFFB7791F),
-            Color(0xFFFFFBEB)
-        ),
-        InvoiceTemplateOption(
-            "corporate_slate",
-            "Corporate Slate",
-            "Dense, structured layout for B2B invoices and formal records.",
-            Color(0xFF475569),
-            Color(0xFFF1F5F9)
-        ),
-        InvoiceTemplateOption(
-            "creative_coral",
-            "Creative Coral",
-            "Modern coral highlights for creative studios and freelancers.",
-            Color(0xFFE11D48),
-            Color(0xFFFFF1F2)
-        ),
-        InvoiceTemplateOption(
-            "royal_purple",
-            "Royal Purple",
-            "Refined purple accents with strong heading hierarchy.",
-            Color(0xFF7C3AED),
-            Color(0xFFF5F3FF)
-        ),
-        InvoiceTemplateOption(
-            "clean_ledger",
-            "Clean Ledger",
-            "Compact ledger-inspired format optimized for item-heavy invoices.",
-            Color(0xFF0F766E),
-            Color(0xFFF0FDFA)
-        )
-    )
+    var templateSearchQuery by remember { mutableStateOf("") }
+    val templates = invoiceTemplateCatalog()
+    val filteredTemplates = remember(templateSearchQuery, templates) {
+        templates.filter { it.matchesSearch(templateSearchQuery) }
+    }
 
     SubScreenScaffold(
         title = "Invoice Templates",
@@ -328,28 +263,43 @@ fun TemplatesScreen(
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        OutlinedTextField(
+            value = templateSearchQuery,
+            onValueChange = { templateSearchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Search templates") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (templateSearchQuery.isNotBlank()) {
+                    IconButton(onClick = { templateSearchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear template search")
+                    }
+                }
+            }
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        templates.forEach { template ->
-            TemplateOptionCard(
-                template = template,
-                selected = invoiceSettings.templateId == template.id,
-                onClick = { viewModel.selectInvoiceTemplate(template.id) }
+        if (filteredTemplates.isEmpty()) {
+            Text(
+                text = "No templates found.",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        } else {
+            filteredTemplates.forEach { template ->
+                TemplateOptionCard(
+                    template = template,
+                    selected = invoiceSettings.templateId == template.id,
+                    onClick = { viewModel.selectInvoiceTemplate(template.id) }
+                )
+            }
         }
     }
 }
 
-private data class InvoiceTemplateOption(
-    val id: String,
-    val title: String,
-    val description: String,
-    val accent: Color,
-    val container: Color
-)
-
 @Composable
 private fun TemplateOptionCard(
-    template: InvoiceTemplateOption,
+    template: InvoiceTemplateCatalogItem,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -358,10 +308,10 @@ private fun TemplateOptionCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = template.container),
+        colors = CardDefaults.cardColors(containerColor = template.settingsContainerColor),
         border = androidx.compose.foundation.BorderStroke(
             width = if (selected) 2.dp else 1.dp,
-            color = if (selected) template.accent else template.accent.copy(alpha = 0.28f)
+            color = if (selected) template.accentColor else template.accentColor.copy(alpha = 0.28f)
         )
     ) {
         Row(
@@ -371,7 +321,7 @@ private fun TemplateOptionCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TemplatePreview(accent = template.accent)
+            TemplatePreview(accent = template.accentColor)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = template.title,
@@ -391,14 +341,14 @@ private fun TemplateOptionCard(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Selected",
-                    tint = template.accent,
+                    tint = template.accentColor,
                     modifier = Modifier.size(24.dp)
                 )
             } else {
                 RadioButton(
                     selected = false,
                     onClick = onClick,
-                    colors = RadioButtonDefaults.colors(selectedColor = template.accent)
+                    colors = RadioButtonDefaults.colors(selectedColor = template.accentColor)
                 )
             }
         }

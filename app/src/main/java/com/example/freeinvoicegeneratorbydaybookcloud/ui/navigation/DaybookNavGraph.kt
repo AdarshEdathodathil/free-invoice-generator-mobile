@@ -97,8 +97,6 @@ fun DaybookNavGraph(
             MoreScreen(
                 viewModel = settingsViewModel,
                 onNavigateToOrgSettings = { navController.navigate("org_settings") },
-                onNavigateToInvoiceSettings = { navController.navigate("invoice_settings") },
-                onNavigateToTemplates = { navController.navigate("templates") },
                 onNavigateToAppearance = { navController.navigate("appearance") },
                 onNavigateToHelp = { navController.navigate("help_support") },
                 onNavigateToAbout = { navController.navigate("about") },
