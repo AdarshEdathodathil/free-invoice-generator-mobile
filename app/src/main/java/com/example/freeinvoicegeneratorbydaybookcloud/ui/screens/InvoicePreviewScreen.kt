@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
+import android.view.ViewGroup
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.freeinvoicegeneratorbydaybookcloud.pdf.InvoiceHtmlRenderer
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.DaybookTopBar
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.CreateInvoiceViewModel
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoicePreviewEvent
@@ -215,6 +220,12 @@ fun InvoicePreviewScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            HtmlInvoicePreview(
+                invoice = invoice,
+                templateId = selectedTemplateId,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (false) {
             // ── Invoice Document Card ─────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -223,49 +234,7 @@ fun InvoicePreviewScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column {
-                    // Colored header band with invoice title
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                templateStyle.headerColor,
-                                RoundedCornerShape(
-                                    topStart = templateStyle.cardCornerRadius,
-                                    topEnd = templateStyle.cardCornerRadius
-                                )
-                            )
-                            .padding(20.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "INVOICE",
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = templateStyle.onHeaderColor,
-                                    letterSpacing = 2.sp
-                                )
-                                Text(
-                                    text = "# ${invoice.invoiceNumber}",
-                                    fontSize = 13.sp,
-                                    color = templateStyle.onHeaderColor.copy(alpha = 0.8f)
-                                )
-                            }
-                            invoice.organizationLogoPath?.let {
-                                OrganizationLogo(
-                                    uri = it,
-                                    modifier = Modifier
-                                        .widthIn(max = 92.dp)
-                                        .height(54.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                )
-                            }
-                        }
-                    }
+                    InvoicePreviewHeader(invoice = invoice, templateStyle = templateStyle)
 
                     // Document body
                     Column(
@@ -462,11 +431,75 @@ fun InvoicePreviewScreen(
                     }
                 }
             }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
+
+@Composable
+private fun HtmlInvoicePreview(
+    invoice: com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoiceUiModel,
+    templateId: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val logoResolver = remember { LogoResolver() }
+    val html = remember(invoice, templateId) {
+        InvoiceHtmlRenderer.render(context, logoResolver, invoice, templateId)
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(760.dp),
+            factory = { viewContext ->
+                WebView(viewContext).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    settings.javaScriptEnabled = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.textZoom = 100
+                    settings.blockNetworkLoads = true
+                    settings.builtInZoomControls = false
+                    settings.displayZoomControls = false
+                    isHorizontalScrollBarEnabled = false
+                    isVerticalScrollBarEnabled = false
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    webViewClient = WebViewClient()
+                }
+            },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            },
+            update = { webView ->
+                val document = templateId to html
+                if (webView.tag != document) {
+                    webView.tag = document
+                    webView.loadDataWithBaseURL(
+                        InvoiceHtmlRenderer.baseUrl(templateId),
+                        html,
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
+                }
+            }
+        )
+    }
+}
+
 
 private data class InvoicePreviewTemplateStyle(
     val headerColor: Color,
@@ -474,92 +507,259 @@ private data class InvoicePreviewTemplateStyle(
     val accentColor: Color,
     val documentColor: Color,
     val tableHeaderColor: Color,
-    val cardCornerRadius: Dp
+    val cardCornerRadius: Dp,
+    val layout: InvoiceTemplateLayout
 )
+
+@Composable
+private fun InvoicePreviewHeader(
+    invoice: com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoiceUiModel,
+    templateStyle: InvoicePreviewTemplateStyle
+) {
+    val topShape = RoundedCornerShape(
+        topStart = templateStyle.cardCornerRadius,
+        topEnd = templateStyle.cardCornerRadius
+    )
+    val logo: @Composable (Modifier, Alignment) -> Unit = { modifier, alignment ->
+        invoice.organizationLogoPath?.let {
+            OrganizationLogo(uri = it, modifier = modifier, contentAlignment = alignment)
+        }
+    }
+
+    when (templateStyle.layout) {
+        InvoiceTemplateLayout.CENTERED -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.headerColor, topShape)
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                logo(Modifier.widthIn(max = 86.dp).height(46.dp), Alignment.Center)
+                Spacer(Modifier.height(10.dp))
+                Text("INVOICE", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.onHeaderColor, letterSpacing = 2.sp)
+                Text("# ${invoice.invoiceNumber}", fontSize = 13.sp, color = templateStyle.onHeaderColor.copy(alpha = 0.82f))
+            }
+        }
+        InvoiceTemplateLayout.SIDE_RAIL -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.documentColor, topShape)
+                    .padding(end = 18.dp, top = 18.dp, bottom = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(18.dp)
+                        .height(78.dp)
+                        .background(templateStyle.headerColor, RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp))
+                )
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("INVOICE", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.headerColor, letterSpacing = 1.sp)
+                    Text("# ${invoice.invoiceNumber}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                logo(Modifier.widthIn(max = 86.dp).height(48.dp), Alignment.CenterEnd)
+            }
+        }
+        InvoiceTemplateLayout.TOP_STRIPE, InvoiceTemplateLayout.LEDGER -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.documentColor, topShape)
+            ) {
+                Box(Modifier.fillMaxWidth().height(if (templateStyle.layout == InvoiceTemplateLayout.LEDGER) 6.dp else 12.dp).background(templateStyle.headerColor))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("INVOICE", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.headerColor)
+                        Text("# ${invoice.invoiceNumber}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    logo(Modifier.widthIn(max = 88.dp).height(50.dp), Alignment.CenterEnd)
+                }
+            }
+        }
+        InvoiceTemplateLayout.TOTAL_HERO -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.headerColor, topShape)
+                    .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("INVOICE", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.onHeaderColor)
+                    Text("# ${invoice.invoiceNumber}", fontSize = 12.sp, color = templateStyle.onHeaderColor.copy(alpha = 0.78f))
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("TOTAL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = templateStyle.onHeaderColor.copy(alpha = 0.72f))
+                    Text(
+                        formatMoney(invoice.totalMinor, invoice.currencySymbol, invoice.decimalPlaces, invoice.internationalNumbering),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = templateStyle.onHeaderColor,
+                        textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+        InvoiceTemplateLayout.BOXED_META -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.documentColor, topShape)
+                    .padding(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("INVOICE", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.headerColor)
+                    Text(invoice.organizationName.ifBlank { "Business" }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(
+                    modifier = Modifier
+                        .background(templateStyle.tableHeaderColor, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text("# ${invoice.invoiceNumber}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = templateStyle.headerColor)
+                    Text(invoice.date, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        InvoiceTemplateLayout.MINIMAL -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.documentColor, topShape)
+                    .padding(20.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                    logo(Modifier.widthIn(max = 72.dp).height(44.dp), Alignment.CenterStart)
+                    Text("# ${invoice.invoiceNumber}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Invoice", fontSize = 26.sp, fontWeight = FontWeight.Light, color = MaterialTheme.colorScheme.onSurface)
+                Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(1.dp).background(templateStyle.headerColor.copy(alpha = 0.35f)))
+            }
+        }
+        InvoiceTemplateLayout.SPLIT_BAND -> {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(templateStyle.headerColor, RoundedCornerShape(topStart = templateStyle.cardCornerRadius))
+                        .padding(18.dp)
+                ) {
+                    Column {
+                        Text("INVOICE", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.onHeaderColor)
+                        Text("# ${invoice.invoiceNumber}", fontSize = 12.sp, color = templateStyle.onHeaderColor.copy(alpha = 0.8f))
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(templateStyle.tableHeaderColor, RoundedCornerShape(topEnd = templateStyle.cardCornerRadius))
+                        .padding(18.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    logo(Modifier.widthIn(max = 90.dp).height(50.dp), Alignment.CenterEnd)
+                }
+            }
+        }
+        InvoiceTemplateLayout.STUDIO -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.tableHeaderColor, topShape)
+                    .padding(18.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    logo(Modifier.widthIn(max = 82.dp).height(46.dp), Alignment.CenterStart)
+                    Surface(color = templateStyle.headerColor, shape = RoundedCornerShape(50)) {
+                        Text("# ${invoice.invoiceNumber}", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, color = templateStyle.onHeaderColor, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("INVOICE", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.headerColor)
+            }
+        }
+        InvoiceTemplateLayout.CORPORATE -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.headerColor, topShape)
+            ) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text(invoice.organizationName.ifBlank { "Business" }, fontSize = 13.sp, color = templateStyle.onHeaderColor.copy(alpha = 0.76f), fontWeight = FontWeight.Bold)
+                        Text("INVOICE", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.onHeaderColor)
+                    }
+                    logo(Modifier.widthIn(max = 86.dp).height(48.dp), Alignment.CenterEnd)
+                }
+                Box(Modifier.fillMaxWidth().background(templateStyle.tableHeaderColor).padding(horizontal = 18.dp, vertical = 8.dp)) {
+                    Text("# ${invoice.invoiceNumber}  |  ${invoice.date}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        InvoiceTemplateLayout.CLASSIC -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(templateStyle.headerColor, topShape)
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("INVOICE", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = templateStyle.onHeaderColor, letterSpacing = 2.sp)
+                        Text("# ${invoice.invoiceNumber}", fontSize = 13.sp, color = templateStyle.onHeaderColor.copy(alpha = 0.8f))
+                    }
+                    logo(Modifier.widthIn(max = 92.dp).height(54.dp), Alignment.CenterEnd)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun invoicePreviewTemplateStyle(templateId: String): InvoicePreviewTemplateStyle {
     val scheme = MaterialTheme.colorScheme
-    return when (templateId) {
-        "classic_business" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF1F2937),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF374151),
+    val normalizedTemplateId = when (templateId) {
+        "elegant_blue" -> "blue_split"
+        "royal_purple" -> "royal_plum"
+        else -> templateId
+    }
+    val catalogTemplate = invoiceTemplateCatalog().firstOrNull { it.id == normalizedTemplateId }
+    return if (catalogTemplate != null) {
+        InvoicePreviewTemplateStyle(
+            headerColor = catalogTemplate.headerColor,
+            onHeaderColor = catalogTemplate.onHeaderColor,
+            accentColor = catalogTemplate.accentColor,
             documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFE5E7EB),
-            cardCornerRadius = 8.dp
+            tableHeaderColor = catalogTemplate.tableHeaderColor,
+            cardCornerRadius = catalogTemplate.cardCornerRadius,
+            layout = catalogTemplate.layout
         )
-        "elegant_blue" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF1D4ED8),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF2563EB),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFDBEAFE),
-            cardCornerRadius = 18.dp
-        )
-        "minimal_black" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF111827),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF111827),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFF3F4F6),
-            cardCornerRadius = 2.dp
-        )
-        "soft_green" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF047857),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF059669),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFD1FAE5),
-            cardCornerRadius = 20.dp
-        )
-        "premium_gold" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF78350F),
-            onHeaderColor = Color(0xFFFFFBEB),
-            accentColor = Color(0xFFB45309),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFFEF3C7),
-            cardCornerRadius = 14.dp
-        )
-        "corporate_slate" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF334155),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF475569),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFE2E8F0),
-            cardCornerRadius = 10.dp
-        )
-        "creative_coral" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFFE11D48),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFFF43F5E),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFFFE4E6),
-            cardCornerRadius = 22.dp
-        )
-        "royal_purple" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF6D28D9),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF7C3AED),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFEDE9FE),
-            cardCornerRadius = 18.dp
-        )
-        "clean_ledger" -> InvoicePreviewTemplateStyle(
-            headerColor = Color(0xFF0F766E),
-            onHeaderColor = Color.White,
-            accentColor = Color(0xFF0D9488),
-            documentColor = scheme.surface,
-            tableHeaderColor = Color(0xFFCCFBF1),
-            cardCornerRadius = 6.dp
-        )
-        else -> InvoicePreviewTemplateStyle(
+    } else {
+        InvoicePreviewTemplateStyle(
             headerColor = scheme.primary,
             onHeaderColor = scheme.onPrimary,
             accentColor = scheme.primary,
             documentColor = scheme.surface,
             tableHeaderColor = scheme.surfaceContainerLow,
-            cardCornerRadius = 20.dp
+            cardCornerRadius = 20.dp,
+            layout = InvoiceTemplateLayout.CLASSIC
         )
     }
 }

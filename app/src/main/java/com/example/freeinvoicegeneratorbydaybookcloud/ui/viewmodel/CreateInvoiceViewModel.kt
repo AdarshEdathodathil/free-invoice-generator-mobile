@@ -447,7 +447,9 @@ class CreateInvoiceViewModel @Inject constructor(
         val invoice = invoices.value.firstOrNull { it.id == invoiceId } ?: return
         _pdfActionState.value = PdfActionState(isGeneratingPdf = true)
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { invoicePdfGenerator.saveToDownloads(invoice) }
+            val result = withContext(Dispatchers.IO) {
+                invoicePdfGenerator.saveToDownloads(invoice, selectedTemplateId.value)
+            }
             result
                 .onSuccess { _previewEvents.emit(InvoicePreviewEvent.DownloadSuccess(it)) }
                 .onFailure { _previewEvents.emit(InvoicePreviewEvent.DownloadError) }
@@ -461,7 +463,7 @@ class CreateInvoiceViewModel @Inject constructor(
         _pdfActionState.value = PdfActionState(isGeneratingPdf = true)
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                invoicePdfGenerator.createSharePdf(invoice).map { file ->
+                invoicePdfGenerator.createSharePdf(invoice, selectedTemplateId.value).map { file ->
                     invoicePdfGenerator.contentUriFor(file) to file.name
                 }
             }

@@ -1,6 +1,7 @@
 package com.example.freeinvoicegeneratorbydaybookcloud.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
@@ -22,12 +23,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.freeinvoicegeneratorbydaybookcloud.R
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.theme.*
 import com.example.freeinvoicegeneratorbydaybookcloud.util.formatMoney
 
@@ -74,104 +83,148 @@ fun DaybookTopBar(
 // BOTTOM NAVIGATION
 // ─────────────────────────────────────────────────────────────────────────────
 
-data class BottomNavItem(val route: String, val label: String, val icon: ImageVector)
+private class CenterNotchedBottomBarShape(
+    private val cornerRadius: androidx.compose.ui.unit.Dp = 24.dp,
+    private val notchWidth: androidx.compose.ui.unit.Dp = 92.dp,
+    private val notchDepth: androidx.compose.ui.unit.Dp = 30.dp
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val corner = with(density) { cornerRadius.toPx() }
+        val notchHalfWidth = with(density) { notchWidth.toPx() } / 2f
+        val depth = with(density) { notchDepth.toPx() }
+        val centerX = size.width / 2f
+        val notchStart = centerX - notchHalfWidth
+        val notchEnd = centerX + notchHalfWidth
+
+        val path = Path().apply {
+            moveTo(corner, 0f)
+            lineTo(notchStart, 0f)
+            cubicTo(
+                notchStart + notchHalfWidth * 0.26f, 0f,
+                centerX - notchHalfWidth * 0.54f, depth,
+                centerX, depth
+            )
+            cubicTo(
+                centerX + notchHalfWidth * 0.54f, depth,
+                notchEnd - notchHalfWidth * 0.26f, 0f,
+                notchEnd, 0f
+            )
+            lineTo(size.width - corner, 0f)
+            quadraticTo(size.width, 0f, size.width, corner)
+            lineTo(size.width, size.height - corner)
+            quadraticTo(size.width, size.height, size.width - corner, size.height)
+            lineTo(corner, size.height)
+            quadraticTo(0f, size.height, 0f, size.height - corner)
+            lineTo(0f, corner)
+            quadraticTo(0f, 0f, corner, 0f)
+            close()
+        }
+
+        return Outline.Generic(path)
+    }
+}
+
+data class BottomNavItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector? = null,
+    @param:DrawableRes val iconRes: Int? = null
+)
 
 @Composable
 fun DaybookBottomNavigation(
     currentRoute: String,
     onTabSelected: (String) -> Unit
 ) {
-    val items = listOf(
-        BottomNavItem("home",      "Home",      Icons.Default.Home),
-        BottomNavItem("invoices",  "Invoices",  Icons.Default.Description),
-        BottomNavItem("create",    "Create",    Icons.Default.Add),
-        BottomNavItem("templates", "Templates", Icons.Default.Folder),
-        BottomNavItem("more",      "More",      Icons.Default.Menu)
+    val leftItems = listOf(
+        BottomNavItem("home", "Home", icon = Icons.Default.Home),
+        BottomNavItem("invoices", "Invoice", icon = Icons.Default.Description)
+    )
+    val rightItems = listOf(
+        BottomNavItem("templates", "Templates", iconRes = R.drawable.template_icon),
+        BottomNavItem("more", "More", icon = Icons.Default.Menu)
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .height(118.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Row(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .shadow(10.dp, RoundedCornerShape(28.dp), clip = false)
-                .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .height(92.dp)
+                .align(Alignment.BottomCenter)
+                .shadow(
+                    elevation = 14.dp,
+                    shape = CenterNotchedBottomBarShape(),
+                    clip = false,
+                    ambientColor = Color.Black.copy(alpha = 0.10f),
+                    spotColor = Color.Black.copy(alpha = 0.14f)
+                ),
+            shape = CenterNotchedBottomBarShape(),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
         ) {
-            items.forEach { item ->
-                val selected = currentRoute == item.route
-                if (item.route == "create") {
-                    Box(
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 6.dp, top = 18.dp, end = 6.dp, bottom = 18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                leftItems.forEach { item ->
+                    DaybookBottomNavDestination(
+                        item = item,
+                        selected = currentRoute == item.route,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .clickable { onTabSelected(item.route) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                } else {
-                    Column(
+                        onClick = { onTabSelected(item.route) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(64.dp))
+
+                rightItems.forEach { item ->
+                    DaybookBottomNavDestination(
+                        item = item,
+                        selected = currentRoute == item.route,
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { onTabSelected(item.route) }
-                            .padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
-                                    else Color.Transparent
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label,
-                                tint = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = item.label,
-                            fontSize = 10.sp,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
+                            .fillMaxHeight(),
+                        onClick = { onTabSelected(item.route) }
+                    )
                 }
             }
+        }
+
+        FloatingActionButton(
+            onClick = { onTabSelected("create") },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .size(64.dp),
+            shape = CircleShape,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 10.dp,
+                pressedElevation = 6.dp,
+                focusedElevation = 10.dp,
+                hoveredElevation = 10.dp
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Create Invoice",
+                modifier = Modifier.size(31.dp)
+            )
         }
     }
 }
@@ -179,6 +232,84 @@ fun DaybookBottomNavigation(
 // ─────────────────────────────────────────────────────────────────────────────
 // BUTTONS
 // ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun DaybookBottomNavDestination(
+    item: BottomNavItem,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+    }
+    val labelColor = if (selected) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.76f)
+    }
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 1.dp, vertical = 1.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)
+                    else Color.Transparent
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            BottomNavIcon(
+                item = item,
+                tint = contentColor,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = item.label,
+            fontSize = 12.sp,
+            lineHeight = 14.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            color = labelColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun BottomNavIcon(
+    item: BottomNavItem,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    if (item.iconRes != null) {
+        Icon(
+            painter = painterResource(id = item.iconRes),
+            contentDescription = item.label,
+            tint = tint,
+            modifier = modifier
+        )
+    } else if (item.icon != null) {
+        Icon(
+            imageVector = item.icon,
+            contentDescription = item.label,
+            tint = tint,
+            modifier = modifier
+        )
+    }
+}
 
 @Composable
 fun PrimaryButton(
