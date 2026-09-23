@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
+import android.view.ViewGroup
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.freeinvoicegeneratorbydaybookcloud.pdf.InvoiceHtmlRenderer
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.components.DaybookTopBar
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.CreateInvoiceViewModel
 import com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoicePreviewEvent
@@ -215,6 +220,12 @@ fun InvoicePreviewScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
+            HtmlInvoicePreview(
+                invoice = invoice,
+                templateId = selectedTemplateId,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (false) {
             // ── Invoice Document Card ─────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -420,11 +431,75 @@ fun InvoicePreviewScreen(
                     }
                 }
             }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
+
+@Composable
+private fun HtmlInvoicePreview(
+    invoice: com.example.freeinvoicegeneratorbydaybookcloud.ui.viewmodel.InvoiceUiModel,
+    templateId: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val logoResolver = remember { LogoResolver() }
+    val html = remember(invoice, templateId) {
+        InvoiceHtmlRenderer.render(context, logoResolver, invoice, templateId)
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(760.dp),
+            factory = { viewContext ->
+                WebView(viewContext).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    settings.javaScriptEnabled = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.textZoom = 100
+                    settings.blockNetworkLoads = true
+                    settings.builtInZoomControls = false
+                    settings.displayZoomControls = false
+                    isHorizontalScrollBarEnabled = false
+                    isVerticalScrollBarEnabled = false
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    webViewClient = WebViewClient()
+                }
+            },
+            onRelease = { webView ->
+                webView.stopLoading()
+                webView.destroy()
+            },
+            update = { webView ->
+                val document = templateId to html
+                if (webView.tag != document) {
+                    webView.tag = document
+                    webView.loadDataWithBaseURL(
+                        InvoiceHtmlRenderer.baseUrl(templateId),
+                        html,
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
+                }
+            }
+        )
+    }
+}
+
 
 private data class InvoicePreviewTemplateStyle(
     val headerColor: Color,

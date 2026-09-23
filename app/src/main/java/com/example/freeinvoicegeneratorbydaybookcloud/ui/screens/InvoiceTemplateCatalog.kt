@@ -3,6 +3,7 @@ package com.example.freeinvoicegeneratorbydaybookcloud.ui.screens
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.freeinvoicegeneratorbydaybookcloud.pdf.InvoiceTemplateAssets
 
 internal data class InvoiceTemplateCatalogItem(
     val id: String,
@@ -31,7 +32,29 @@ internal enum class InvoiceTemplateLayout {
     CORPORATE
 }
 
-internal fun invoiceTemplateCatalog() = listOf(
+internal fun invoiceTemplateCatalog(): List<InvoiceTemplateCatalogItem> {
+    val curated = curatedInvoiceTemplateCatalog()
+    val curatedIds = curated.map { it.id }.toSet()
+    val uploaded = InvoiceTemplateAssets.all
+        .filterNot { it.id in curatedIds }
+        .map { asset ->
+            val accent = templateAccent(asset.id)
+            InvoiceTemplateCatalogItem(
+                id = asset.id,
+                title = asset.title,
+                description = "${asset.category} HTML template from assets.",
+                accentColor = accent,
+                settingsContainerColor = accent.copy(alpha = 0.10f),
+                headerColor = accent,
+                onHeaderColor = Color.White,
+                tableHeaderColor = accent.copy(alpha = 0.18f),
+                cardCornerRadius = 12.dp
+            )
+        }
+    return curated + uploaded
+}
+
+private fun curatedInvoiceTemplateCatalog() = listOf(
     InvoiceTemplateCatalogItem(
         id = "modern_teal",
         title = "Modern Teal (Default)",
@@ -384,6 +407,22 @@ internal fun invoiceTemplateCatalog() = listOf(
         cardCornerRadius = 6.dp
     )
 )
+
+private fun templateAccent(id: String): Color {
+    val palette = listOf(
+        Color(0xFF0F766E),
+        Color(0xFF2563EB),
+        Color(0xFFE11D48),
+        Color(0xFF7C3AED),
+        Color(0xFFB45309),
+        Color(0xFF059669),
+        Color(0xFFDC2626),
+        Color(0xFF0891B2),
+        Color(0xFF4F46E5),
+        Color(0xFF475569)
+    )
+    return palette[id.hashCode().ushr(1) % palette.size]
+}
 
 internal fun InvoiceTemplateCatalogItem.matchesSearch(query: String): Boolean {
     val normalizedQuery = query.trim()
