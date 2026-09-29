@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Free invoice generator by Daybook.Cloud"
 include(":app")
+include(":shared")
