@@ -617,7 +617,7 @@ fun AboutScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            Text(text = "Daybook.Cloud Mobile", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(text = "Free Invoice Generator", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Version 1.0.0 (Local-First)",
@@ -626,7 +626,14 @@ fun AboutScreen(onBack: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Create professional invoices instantly with zero signups and 100% data privacy.",
+                text = "Create invoices in your brand's style from a large library of ready-made templates. Completely free. No credit card. No signup.",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Free Invoice Generator is made by Tociva Private Limited (tociva.com) as part of daybook.cloud.",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center

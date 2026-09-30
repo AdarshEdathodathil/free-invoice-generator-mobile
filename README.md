@@ -1,7 +1,11 @@
 <div align="center">
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="Daybook.Cloud invoice generator icon" width="96" />
 
-  # Free Invoice Generator by Daybook.Cloud
+  # Free Invoice Generator
+
+  Create invoices in your brand’s style from a large library of ready-made templates. Completely free. No credit card. No signup.
+
+  Free Invoice Generator is made by Tociva Private Limited (tociva.com) as part of daybook.cloud.
 
   Private, offline-first Android and iOS apps for creating, managing, exporting, and sharing professional invoices.
 

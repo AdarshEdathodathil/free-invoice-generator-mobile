@@ -10,7 +10,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.freeinvoicegeneratorbydaybookcloud"
+        applicationId = "com.tociva.freeinvoicegenerator"
         minSdk = 28
         targetSdk = 37
         versionCode = 1

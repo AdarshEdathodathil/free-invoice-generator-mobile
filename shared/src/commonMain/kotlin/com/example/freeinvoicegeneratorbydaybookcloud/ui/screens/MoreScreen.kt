@@ -131,7 +131,7 @@ fun MoreScreen(
                         )
                         SettingsRow(
                             icon = Icons.Default.Info,
-                            title = "About Daybook.Cloud",
+                            title = "About",
                             onClick = onNavigateToAbout
                         )
                     }
@@ -172,7 +172,7 @@ fun MoreScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Daybook.Cloud v1.0.0 - Free & Open Source",
+                    text = "Free Invoice Generator v1.0.0",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.align(Alignment.CenterHorizontally)

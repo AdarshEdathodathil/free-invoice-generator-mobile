@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_ROOT/build/ios/Build/Products/Debug-iphonesimulator/Free Invoice Generator.app"
-BUNDLE_ID="cloud.daybook.freeinvoicegenerator"
+BUNDLE_ID="com.tociva.freeinvoicegenerator"
 REQUESTED_DEVICE="${1:-${IOS_SIMULATOR:-}}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then

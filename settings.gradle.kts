@@ -16,6 +16,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Free invoice generator by Daybook.Cloud"
+rootProject.name = "Free Invoice Generator"
 include(":app")
 include(":shared")

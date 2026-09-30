@@ -230,7 +230,7 @@
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = cloud.daybook.freeinvoicegenerator;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tociva.freeinvoicegenerator;
 				PRODUCT_NAME = "Free Invoice Generator";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -267,7 +267,7 @@
 					"-framework",
 					Shared,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = cloud.daybook.freeinvoicegenerator;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tociva.freeinvoicegenerator;
 				PRODUCT_NAME = "Free Invoice Generator";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
