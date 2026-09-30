@@ -1,8 +1,12 @@
 package com.example.freeinvoicegeneratorbydaybookcloud
 
 import android.app.Application
-import dagger.hilt.android.HiltAndroidApp
+import com.example.freeinvoicegeneratorbydaybookcloud.platform.initializePlatform
 
-@HiltAndroidApp
-class DaybookApplication : Application()
-
+class DaybookApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        initializePlatform(this)
+        registerAndroidPdfBridge(this)
+    }
+}
